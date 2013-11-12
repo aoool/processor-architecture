@@ -43,24 +43,21 @@ inline COLORREF sRGB(int Red, int Green, int Blue)
 	return RGB(Red, Green, Blue);
 }
 
-
-
-// Функция, осуществляющая преобразование олного пиксела изображения. Передаваемый пиксел умножается на
+// Функция, осуществляющая преобразование одного пиксела изображения. Передаваемый пиксел умножается на
 // центральный элемент элемент матрицы, а окружающие его пикселы на соответствующие элементы матрицы.
-// Все девять произведений суммируются для получения пиксела-результата
-COLORREF Kernel(unsigned char* Pixel, int Width) 
+// Все девять произведений суммируются для получения пиксела-результата (для внутренних пикселов)
+inline COLORREF Kernel(unsigned char* Pixel, int Width) 
 {
 	int Red = 0, Green = 0, Blue = 0; //Три цвета результата
-	//Умножение на элементы матрицы ядра окружающих пикселов поцветно
-	for (int i = -1; i <= 1; i++)
-		for (int j = -1; j <= 1; j++)
-		{
-			//Выбор пиксела из окружения
-			UINT32 pix = *(Pixel - i * Width + j);
-			//и умножение его на соответствующий элемент матрицы поцветно
-			Red   += GetRValue(pix) * mtrxKernel[i + 1][j + 1];
-			Green += GetGValue(pix) * mtrxKernel[i + 1][j + 1];
-			Blue  += GetBValue(pix) * mtrxKernel[i + 1][j + 1];
+	// Умножение на элементы матрицы ядра окружающих пикселов поцветно
+	for ( int i = -1 ; i <= 1 ; i++ )
+		for( int j = -1 ; j <= 1 ; j++ )
+		{	// Выбор пиксела из окружения
+			UINT32 pix = *(Pixel - i*Width + j) ;
+			// и умножение его на соответствующий элемент матрицы поцветно
+			Red   += GetRValue(pix) * mtrxKernel[i+1][j+1] ;
+			Green += GetGValue(pix) * mtrxKernel[i+1][j+1] ;
+			Blue  += GetBValue(pix) * mtrxKernel[i+1][j+1] ;
 		}
 	//Сборка результата из цветов
 	return sRGB(Red, Green, Blue);
@@ -74,6 +71,7 @@ void Filter_cpp( unsigned char* pDst, unsigned char* pSrc, int Width, int Height
 	{
 		pDst[i * Width] = pSrc[i * Width]; //Копирование крайнего левого пиксела текущей строки пикселов
 		pDst[(i + 1) * Width - 1] = pSrc[(i + 1) * Width - 1]; //Копирование крайнего правого пиксела текущей строки
+		//Запись пикселов в выходную матрицу с примененным к ним фильтром Лапласа (для внутренних пикселов)
 		for (int j = 1; j < Width - 1; j++)
 		{
 			pDst[i * Width + j] = static_cast<unsigned char>(Kernel(pSrc + i * Width + j, Width));
