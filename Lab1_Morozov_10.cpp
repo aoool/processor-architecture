@@ -18,49 +18,36 @@
 
 #include "stdafx.h"
 
-//Матрица, определяющая ядро фильтра для оператора Лапласа
-int mtrxKernel[3][3] = 
-{
-	{ 0,  1, 0 },
-	{ 1, -4, 1 },
-	{ 0,  1, 0 }
-};
-
-// Функция, осуществляющая слияние трех цветовых составляющих в 32-битное целое COLORREF
-// Отличие от стандартного макроса RGB состоит в том, что цветовые составляющие имеют тип int, 
-// а не char и перед сборкой производится проверка выхода значения пиксела за границы 0-255
-// и привидение к минимальному/максимальному значению в случае выхода
-inline COLORREF sRGB(int Red, int Green, int Blue)
-{
-	// Обработка переполнения. В результате операций цвета могли выйти за пределы 0...255
-	if ( Red   > 0xFF ) Red   = 0xFF ;
-	if ( Green > 0xFF ) Green = 0xFF ;
-	if ( Blue  > 0xFF ) Blue  = 0xFF ;
-	if ( Red   < 0 ) Red   = 0 ;
-	if ( Green < 0 ) Green = 0 ;
-	if ( Blue  < 0 ) Blue  = 0 ;
-	// Сборка результата из цветов (вызов стандартного макроса)
-	return RGB(Red, Green, Blue);
-}
+//Матрица, определяющая ядро фильтра для оператора Лапласа (используется в комментариях, для пояснений)
+//int mtrxKernel[3][3] = 
+//{
+//	{ 0,  1, 0 },
+//	{ 1, -4, 1 },
+//	{ 0,  1, 0 }
+//};
 
 // Функция, осуществляющая преобразование одного пиксела изображения. Передаваемый пиксел умножается на
 // центральный элемент элемент матрицы, а окружающие его пикселы на соответствующие элементы матрицы.
-// Все девять произведений суммируются для получения пиксела-результата (для внутренних пикселов)
-inline COLORREF Kernel(unsigned char* Pixel, int Width) 
+// Все произведения суммируются для получения пиксела-результата (для внутренних пикселов)
+unsigned char Kernel(unsigned char* Pixel, int Width) 
 {
-	int Red = 0, Green = 0, Blue = 0; //Три цвета результата
-	// Умножение на элементы матрицы ядра окружающих пикселов поцветно
-	for ( int i = -1 ; i <= 1 ; i++ )
-		for( int j = -1 ; j <= 1 ; j++ )
-		{	// Выбор пиксела из окружения
-			UINT32 pix = *(Pixel - i*Width + j) ;
-			// и умножение его на соответствующий элемент матрицы поцветно
-			Red   += GetRValue(pix) * mtrxKernel[i+1][j+1] ;
-			Green += GetGValue(pix) * mtrxKernel[i+1][j+1] ;
-			Blue  += GetBValue(pix) * mtrxKernel[i+1][j+1] ;
-		}
-	//Сборка результата из цветов
-	return sRGB(Red, Green, Blue);
+	int pixColor = 0; //Цвет результата
+	//В целях оптимизации произведения пикселов на угловые элементы ядра не вычисляются, так как заведомо равны нулю.
+	UINT32 pix = *(Pixel - Width);     //верхний-средний пиксел
+	pixColor   += pix;                 //pixColor += pix * mtrxKernel[0][1]; 
+	pix        = *(Pixel - 1);         //средний-левый пиксел
+	pixColor   += pix;                 //pixColor += pix * mtrxKernel[1][0]; 
+	pix        = *Pixel;               //текущий пиксел
+	pixColor   += -4 * pix;            //pixColor += pix * mtrxKernel[1][1];
+	pix        = *(Pixel + 1);         //средний-правый пиксел
+	pixColor   += pix;                 //pixColor += pix * mtrxKernel[1][2];
+	pix        = *(Pixel + Width);     //нижний-средний пиксел
+	pixColor   += pix;                 //pixColor += pix * mtrxKernel[2][1];
+	// Обработка переполнения. В результате операций цвет мог выйти за пределы 0..255
+	if (pixColor > 0xFF) pixColor = 0xFF;
+	if (pixColor < 0x00) pixColor = 0x00;
+
+	return static_cast<unsigned char>(pixColor);
 }
 
 void Filter_cpp( unsigned char* pDst, unsigned char* pSrc, int Width, int Height )
@@ -74,7 +61,7 @@ void Filter_cpp( unsigned char* pDst, unsigned char* pSrc, int Width, int Height
 		//Запись пикселов в выходную матрицу с примененным к ним фильтром Лапласа (для внутренних пикселов)
 		for (int j = 1; j < Width - 1; j++)
 		{
-			pDst[i * Width + j] = static_cast<unsigned char>(Kernel(pSrc + i * Width + j, Width));
+			pDst[i * Width + j] = Kernel(pSrc + i * Width + j, Width);
 		}
 	}
 	memcpy(pDst + Width * (Height - 1), pSrc + Width * (Height - 1), Width); //Копирование последней строки пикселов
